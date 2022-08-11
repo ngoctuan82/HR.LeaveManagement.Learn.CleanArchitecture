@@ -1,15 +1,13 @@
 ﻿using AutoMapper;
+using HR.LeaveManagement.Application.Contracts.Persistence;
 using HR.LeaveManagement.Application.DTOs.LeaveType.Validators;
-using HR.LeaveManagement.Application.Exceptions;
 using HR.LeaveManagement.Application.Features.LeaveRequests.Requests.Commands;
-using HR.LeaveManagement.Application.Persistence.Contracts;
+using HR.LeaveManagement.Application.Models;
 using HR.LeaveManagement.Application.Responses;
 using HR.LeaveManagement.Domain;
 using MediatR;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,12 +18,19 @@ namespace HR.LeaveManagement.Application.Features.LeaveRequests.Handlers.Command
         private ILeaveRequestRepository _leaveRequestRepository;
         private IMapper _mapper;
         private ILeaveTypeRepository _leaveTypeRepository;
+        private readonly IEmailSender emailSender;
 
-        public CreateLeaveRequestCommandHandler(ILeaveRequestRepository leaveRequestRepository, IMapper mapper, ILeaveTypeRepository leaveTypeRepository)
+        public CreateLeaveRequestCommandHandler(
+            ILeaveRequestRepository leaveRequestRepository,
+            ILeaveTypeRepository leaveTypeRepository,
+            IEmailSender emailSender,
+            IMapper mapper
+            )
         {
             _leaveRequestRepository = leaveRequestRepository;
             _mapper = mapper;
             _leaveTypeRepository = leaveTypeRepository;
+            this.emailSender = emailSender;
         }
 
         public async Task<BaseCommandResponse> Handle(CreateLeaveRequestCommand request, CancellationToken cancellationToken)
@@ -52,7 +57,31 @@ namespace HR.LeaveManagement.Application.Features.LeaveRequests.Handlers.Command
             response.Message = "Creation Successful";
             response.Id = leaveRequest.Id;
 
+            // send Email
+            await SendEmailAsync(request);
+
             return response;
         }
+
+        private async Task SendEmailAsync(CreateLeaveRequestCommand request)
+        {
+            var email = new Email
+            {
+                To = "employee@org.com",
+                Body = $"Your leave request fro {request.LeaveRequestDto.StartDate} to {request.LeaveRequestDto.EndDate}" +
+                        $"has been submitted successfully.",
+                Subject = "Leave Request Submitted"
+            };
+
+            try
+            {
+                await emailSender.SendEmail(email);
+            }
+            catch (Exception ex)
+            {
+                //log error, dont throw
+            }
+        }
+
     }
 }
